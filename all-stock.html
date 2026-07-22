@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PI Master Stock - Advanced Inventory</title>
+<style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --sidebar-w: 260px; --bg: #f0f2f8; --white: #ffffff; --dark: #1a2236;
+      --blue: #2563eb; --blue-light: #eff6ff; --green: #16a34a; --red: #dc2626;
+      --amber: #d97706; --gray: #6b7280; --border: #e5e7eb; --radius: 12px;
+      --cyan: #06b6d4; --purple: #a855f7; --grey-light: #94a3b8;
+    }
+    body { font-family: 'Segoe UI', Tahoma, sans-serif; background: var(--bg); display: flex; height: 100vh; overflow: hidden; color: #1f2937; }
+
+    /* SIDEBAR NAVIGATION */
+    .sidebar { width: var(--sidebar-w); background: var(--dark); height: 100vh; display: flex; flex-direction: column; overflow-y: auto; flex-shrink: 0; }
+    .logo { padding: 25px 20px; border-bottom: 1px solid rgba(255,255,255,0.05); color: white; font-size: 20px; font-weight: 700; }
+    .logo span { color: #60a5fa; }
+    .menu { padding: 15px 0; }
+    .menu-label { font-size: 10px; text-transform: uppercase; color: rgba(255,255,255,0.3); padding: 20px 20px 8px; letter-spacing: 1.5px; }
+    .menu a { display: flex; align-items: center; gap: 12px; padding: 12px 20px; color: rgba(255,255,255,0.6); text-decoration: none; font-size: 14px; transition: 0.2s; border-left: 4px solid transparent; }
+    .menu a:hover, .menu a.active { color: white; background: rgba(37,99,235,0.15); border-left-color: #3b82f6; }
+
+    /* MAIN LAYOUT */
+    .main { flex-grow: 1; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+    .top-scroll { flex-grow: 1; overflow-y: auto; padding: 20px; }
+
+    /* KPI INTERACTIVE CARDS */
+    .kpi-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin-bottom: 15px; }
+    .kpi-card { background: white; padding: 12px; border-radius: var(--radius); border-top: 4px solid var(--blue); box-shadow: 0 2px 4px rgba(0,0,0,0.05); cursor: pointer; transition: 0.2s; }
+    .kpi-card:hover { transform: translateY(-3px); box-shadow: 0 8px 15px rgba(0,0,0,0.1); }
+    .kpi-label { font-size: 9px; color: var(--gray); text-transform: uppercase; font-weight: 800; }
+    .kpi-value { font-size: 16px; font-weight: 700; margin-top: 4px; display: block; }
+
+    /* FILTER BAR & FLOATING DROPDOWNS */
+    .filter-bar { background: white; padding: 15px; border-radius: var(--radius); border: 1px solid var(--border); margin-bottom: 15px; position: relative; z-index: 1000; }
+    .search-box { margin-bottom: 15px; }
+    .search-box input { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; outline: none; transition: 0.3s; }
+    .search-box input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-light); }
+    
+    .dropdown-row { display: flex; flex-wrap: wrap; gap: 10px; }
+    .custom-dd { position: relative; min-width: 150px; flex: 1; }
+    .dd-header { padding: 10px; cursor: pointer; font-size: 10px; font-weight: 800; display: flex; justify-content: space-between; align-items: center; background: #f8fafc; border: 1px solid var(--border); border-radius: 6px; }
+    .dd-header:hover { border-color: var(--blue); background: white; }
+    
+    .dd-list { position: absolute; top: calc(100% + 5px); left: 0; min-width: 260px; background: white; border: 1px solid #cbd5e1; z-index: 2000; max-height: 350px; overflow-y: auto; display: none; box-shadow: 0 15px 35px rgba(0,0,0,0.15); border-radius: 10px; padding: 5px; }
+    .dd-list.open { display: block; }
+    
+    .dd-search-area { padding: 8px; border-bottom: 1px solid #e2e8f0; position: sticky; top: 0; background: white; z-index: 10; }
+    .dd-search-input { width: 100%; padding: 8px; font-size: 12px; border: 1px solid #cbd5e1; border-radius: 6px; outline: none; }
+    .dd-actions { display: flex; justify-content: space-between; padding: 8px; background: #f8fafc; font-size: 10px; border-radius: 4px; margin-bottom: 5px; }
+    .dd-action-btn { color: var(--blue); cursor: pointer; font-weight: 800; text-transform: uppercase; padding: 2px 5px; border-radius: 4px; }
+    .dd-action-btn:hover { background: var(--blue-light); text-decoration: underline; }
+    
+    .dd-item { padding: 8px 12px; font-size: 12px; display: flex; align-items: center; gap: 10px; cursor: pointer; border-radius: 6px; transition: 0.1s; }
+    .dd-item:hover { background: var(--blue-light); color: var(--blue); }
+    .dd-item.hidden { display: none; }
+    .dd-item input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; }
+
+    /* TABLE DESIGN */
+    .table-card { background: white; border-radius: var(--radius); overflow: auto; border: 1px solid var(--border); box-shadow: 0 4px 12px rgba(0,0,0,0.03); }
+    table { width: 100%; border-collapse: collapse; font-size: 11px; white-space: nowrap; }
+    thead th { background: #f8fafc; padding: 14px 12px; text-align: left; position: sticky; top: 0; font-weight: 800; color: var(--gray); border-bottom: 2px solid var(--border); z-index: 10; }
+    tbody td { padding: 12px; border-bottom: 1px solid #f1f5f9; }
+
+    /* STRATEGIC RECOMMENDATION HEADERS */
+    .rec-header { background: #eff6ff; padding: 12px 15px; font-weight: 800; color: var(--blue); border: 1px solid #bfdbfe; border-bottom: none; font-size: 12px; margin-top: 15px; display: flex; align-items: center; gap: 10px; }
+
+    /* VISUAL CONFLICT RESOLUTION */
+    /* Status Colors (Backgrounds) */
+    .row-low { background-color: #fee2e2 !important; } 
+    .row-inuse { background-color: #fef9c3 !important; } 
+    .row-both { background-color: #ffedd5 !important; } 
+
+    /* Recommendation Tiers (Thick Left Borders) */
+    .tier-1 { border-left: 6px solid var(--blue) !important; }   /* Exact Search */
+    .tier-2 { border-left: 6px solid var(--green) !important; }  /* Perfect Match */
+    .tier-3 { border-left: 6px solid var(--amber) !important; }  /* Slittable (Orange) */
+    .tier-4 { border-left: 6px solid var(--cyan) !important; }   /* Upsell (Higher GSM) */
+    .tier-5 { border-left: 6px solid var(--purple) !important; } /* Color Family */
+    .tier-6 { border-left: 6px solid #eab308 !important; }      /* Tech Match (Yellow) */
+    .tier-7 { border-left: 6px solid var(--gray) !important; }   /* Structural (Diff Color) */
+
+    /* BADGES & BUTTONS */
+    .badge { padding: 4px 8px; border-radius: 6px; font-weight: 800; font-size: 9px; text-transform: uppercase; }
+    .badge-full { background: #dcfce7; color: #166534; }
+    .badge-use { background: #eff6ff; color: #1e40af; }
+    .badge-low { background: #fee2e2; color: #991b1b; }
+    
+    .icon-btn { cursor: pointer; font-size: 15px; color: var(--blue); border: none; background: none; transition: 0.2s; padding: 4px; border-radius: 4px; }
+    .icon-btn:hover { background: var(--blue-light); transform: scale(1.2); }
+    
+    .btn-action { background: var(--blue-light); color: var(--blue); padding: 6px 12px; border-radius: 6px; font-weight: 700; text-decoration: none; font-size: 10px; border:none; cursor:pointer; transition: 0.2s; }
+    .btn-action:hover { background: var(--blue); color: white; }
+    /* Add to existing style */
+    .sl-col { width: 40px; color: var(--gray); font-weight: 700; text-align: center; }
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+    <div class="logo">PI <span>STOCK</span></div>
+    <div class="menu">
+        <div class="menu-label">Main</div>
+        <a href="dashboard.html">🏠 Dashboard</a>
+        <div class="menu-label">Inventory</div>
+        <a href="all-stock.html" class="active">📦 All Stocks</a>
+        <a href="stock-upload.html">⬆️ Upload Stock</a>
+        <a href="stock-details.html">📄 Stock Details</a>
+        <div class="menu-label">Categories</div>
+        <a href="#">🌀 GP Rolls</a>
+        <a href="#">🔩 HR Coils</a>
+        <a href="#">🏗️ Gypsum Godown</a>
+    </div>
+</div>
+
+<div class="main">
+  <div class="top-scroll">
+    <!-- HEADER ACTIONS -->
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+        <h1>Inventory Control Master</h1>
+        <div style="display:flex; gap:10px;">
+            <button class="btn-action" onclick="location.reload()" style="background:var(--blue); color:white">🔄 Refresh Sync</button>
+            <button class="btn-action" onclick="wipeData()" style="background:var(--red); color:white">🗑️ Wipe Data</button>
+        </div>
+    </div>
+
+    <!-- INTERACTIVE KPI GRID -->
+    <div class="kpi-grid">
+        <div class="kpi-card" onclick="filterByKPI('total')">
+            <label class="kpi-label">Total Coils</label>
+            <span id="k-count" class="kpi-value">0</span>
+        </div>
+        <div class="kpi-card" onclick="filterByKPI('weight')">
+            <label class="kpi-label">Total Net WT (Full+Use)</label>
+            <span id="k-wt" class="kpi-value">0 MT</span>
+        </div>
+        <div class="kpi-card" onclick="filterByKPI('full')" style="border-color:var(--green)">
+            <label class="kpi-label">Full Coils</label>
+            <span id="k-full" class="kpi-value">0</span>
+        </div>
+        <div class="kpi-card" onclick="filterByKPI('inuse')" style="border-color:var(--amber)">
+            <label class="kpi-label">In Use / Paid</label>
+            <span id="k-use" class="kpi-value">0</span>
+        </div>
+        <div class="kpi-card" onclick="filterByKPI('consumed')" style="border-color:var(--red)">
+            <label class="kpi-label">Consumed</label>
+            <span id="k-cons" class="kpi-value">0</span>
+        </div>
+        <div class="kpi-card" onclick="filterByKPI('low')" style="border-color:var(--dark)">
+            <label class="kpi-label">Low Stock (<0.5MT)</label>
+            <span id="k-low" class="kpi-value">0</span>
+        </div>
+    </div>
+
+    <!-- SMART FILTERING SYSTEM -->
+    <div class="filter-bar">
+        <div class="search-box">
+            <input type="text" id="smartSearch" placeholder="🔍 Deep Search: Type Batch, Specs (.50*1220), Color, Defect, Wt/Ft (0.64), or Party..." oninput="debouncedSearch()">
+        </div>
+        <div class="dropdown-row" id="filterRow">
+            <!-- Dropdowns populated by JS -->
+        </div>
+    </div>
+
+    <!-- DATA TABLE -->
+    <div class="table-card">
+        <table>
+            <thead>
+                <tr>
+                    <th class="sl-col">#</th>
+                    <th>Inv Date</th>
+                    <th>Identity (Comp/Item/H-S)</th>
+                    <th>Specs (D)</th>
+                    <th>Batch (H)</th>
+                    <th>Open Stk (J)</th>
+                    <th>Status (L)</th>
+                    <th>Gross (M)</th>
+                    <th>Nett (N)</th>
+                    <th>Qual/Color (P)</th>
+                    <th>Coated (R)</th>
+                    <th>Mtr (U)</th>
+                    <th>Wt/Ft (V)</th>
+                    <th>Allocated To</th>
+                    <th>Exp. Pcs</th>
+                    <th>Act. Pcs</th>
+                    <th>Defect</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="master-tbody">
+                <!-- Data and Recommendations populated by JS -->
+            </tbody>
+        </table>
+        
+        <!-- Divider for Strategic Recommendations (managed by JS) -->
+        <div id="rec-divider" style="display:none;"></div>
+
+        <div id="loadMore" style="padding:20px; text-align:center; display:none;">
+            <button class="btn-action" onclick="displayLimit += 100; renderTable();" style="width: 200px; padding: 10px;">Load More Results...</button>
+        </div>
+    </div>
+  </div>
+</div>
+
+<!-- JS section starts after this -->
+</body>
+<script>
+// --- PART 1: SMART DATA ENGINE & INDUSTRY PARSER ---
+
+// 1. EXTENDED COLOR FAMILY MAP (Adjust/Add as needed)
+const COLOR_MAP = {
+    'PEPSI BLUE': 'blue', 'ROYAL BLUE': 'blue', 'SKY BLUE': 'blue', 'NAVY BLUE': 'blue', 'B.BLUE': 'blue', 'TATA BLUE': 'blue',
+    'LEAF GREEN': 'green', 'ENV GREEN': 'green', 'L.GREEN': 'green', 'D.GREEN': 'green', 'OLIVE': 'green',
+    'BRICK RED': 'red', 'TERRA RED': 'red', 'T.RED': 'red', 'CHERRY RED': 'red', 'MAROON': 'red',
+    'SMOKE GREY': 'grey', 'GRAPHITE': 'grey', 'SILVER': 'grey', 'L.GREY': 'grey', 'G.GREY': 'grey',
+    'CHOCOLATE': 'brown', 'COPPER': 'brown', 'BROWN': 'brown', 'IVORY': 'white', 'WHITE': 'white', 'OFF WHITE': 'white'
+};
+
+let rawStock = [];
+try {
+    rawStock = JSON.parse(localStorage.getItem('pi_stock_data')) || [];
+    rawStock = rawStock.map(s => {
+        let y = 'N/A';
+        if(s.invDate && s.invDate.includes('/')) {
+            const parts = s.invDate.split('/');
+            y = parts[parts.length - 1];
+            if(y.length === 2) y = "20" + y;
+        }
+        return {
+            ...s,
+            year: y,
+            netWt: parseFloat(s.netWt) || 0,
+            actWt: parseFloat(s.actWt) || parseFloat(s.netWt) || 0,
+            grossWt: parseFloat(s.grossWt) || 0,
+            mtr: parseFloat(s.mtr) || 0,
+            wtFt: parseFloat(s.wtFt) || 0,
+            price: parseFloat(s.price) || 0,
+            gsm: parseInt(s.coated) || 0
+        };
+    });
+} catch(e) { console.error("Data Load Error", e); }
+
+let filtered = [];
+let recommendations = [];
+let displayLimit = 50;
+let searchTimeout;
+let selections = { year:[], specs:[], item:[], company:[], status:[] };
+
+// 2. INDUSTRY-SMART SEARCH PARSER
+// This logic detects if a user is searching for width, thickness, or weight based on number patterns
+function applyFilters() {
+    const q = document.getElementById('smartSearch').value.toUpperCase().trim();
+    const tokens = q.split(' ');
+
+    filtered = rawStock.filter(s => {
+        // Multi-Select Filter Check
+        const matchesFilters = Object.keys(selections).every(k => selections[k].length === 0 || selections[k].includes(String(s[k])));
+        if (!matchesFilters) return false;
+        if (!q) return true;
+
+        // Smart Token Matching
+        return tokens.every(t => {
+            const num = parseFloat(t);
+            
+            // Pattern A: Likely Width (e.g. 1220, 900, 1000)
+            if (!isNaN(num) && num >= 700) {
+                return s.specs.includes(t);
+            }
+            // Pattern B: Likely Wt/Ft (Specific values like 0.64, 1.18)
+            if (!isNaN(num) && t.includes('.') && t.length >= 4 && s.wtFt.toFixed(2) == num.toFixed(2)) {
+                return true;
+            }
+            // Pattern C: Likely Thickness (e.g. .50, 0.45)
+            if (!isNaN(num) && num < 5 && t.includes('.')) {
+                return s.specs.startsWith(t) || s.specs.includes(t);
+            }
+            // Pattern D: Likely Net Weight (3 decimal places, e.g. 5.123)
+            if (!isNaN(num) && t.split('.')[1]?.length >= 3) {
+                return s.netWt.toFixed(3).includes(t) || s.actWt.toFixed(3).includes(t);
+            }
+
+            // Fuzzy Text Match (Defects, Company, Batch, Color)
+            const deepSearchPool = `${s.batch} ${s.quality} ${s.company} ${s.comments_AF} ${s.defect_AG} ${s.allocatedTo} ${s.item}`.toUpperCase();
+            return deepSearchPool.includes(t);
+        });
+    });
+
+    // Strategy Subject: If we found exactly what was searched, use the first result as the basis for recommendations
+    recommendations = (q.length > 2) ? generateTieredRecommendations(q) : [];
+    renderTable();
+}
+
+
+
+
+// --- PART 2: 7-TIER STRATEGIC RECOMMENDATION ENGINE ---
+
+// Helper to find color family
+function getFamily(colorName) {
+    if (!colorName) return null;
+    const name = colorName.toUpperCase();
+    for (let key in COLOR_MAP) {
+        if (name.includes(key)) return COLOR_MAP[key];
+    }
+    return null;
+}
+
+function generateTieredRecommendations(q) {
+    // 1. Identify the 'Subject' (What is the user looking for?)
+    // We take the first item from our filtered results as the technical benchmark
+    const subject = filtered.length > 0 ? filtered[0] : rawStock.find(s => 
+        s.batch.toUpperCase().includes(q) || s.quality.toUpperCase().includes(q)
+    );
+
+    if (!subject) return [];
+
+    const sColor = (subject.quality || "").toUpperCase();
+    const sThick = parseFloat(subject.specs) || 0;
+    const sWidth = parseInt(subject.specs.split('*')[1]) || 0;
+    const sGSM = parseInt(subject.gsm) || 0;
+    const sHardSoft = (subject.hardSoft || "").toUpperCase();
+    const sFamily = getFamily(sColor);
+    const isSubjectColor = sColor.includes('COLOR') || sColor.includes('BLUE') || sColor.includes('RED') || sColor.includes('GREEN');
+
+    // 2. Filter Candidates (Exclude exact matches and consumed coils)
+    let candidates = rawStock.filter(c => 
+        !filtered.find(f => f.id === c.id) && 
+        c.actWt > 0.05 && 
+        !c.status.toUpperCase().includes('CONSUME')
+    );
+
+    let tiered = [];
+
+    candidates.forEach(c => {
+        const cColor = (c.quality || "").toUpperCase();
+        const cThick = parseFloat(c.specs) || 0;
+        const cWidth = parseInt(c.specs.split('*')[1]) || 0;
+        const cGSM = parseInt(c.gsm) || 0;
+        const cHardSoft = (c.hardSoft || "").toUpperCase();
+        const cFamily = getFamily(cColor);
+        const thickDiff = Math.abs(cThick - sThick);
+        const isCandidateColor = cColor.includes('COLOR') || cColor.includes('BLUE') || cColor.includes('RED') || cColor.includes('GREEN');
+
+        // GUARD: Never recommend HARD for a SOFT request
+        if (sHardSoft === 'SOFT' && cHardSoft === 'HARD') return;
+
+        // TIER 2: PERFECT MATCH (Same color + same technical spec, different batch)
+        if (cColor === sColor && thickDiff <= 0.01 && cWidth === sWidth) {
+            tiered.push({...c, tier: 'tier-2', priority: 2, reason: 'Perfect technical match'});
+        }
+
+        // TIER 3: SLITTABLE (Same color/thick, but WIDER width)
+        else if (cColor === sColor && thickDiff <= 0.01 && cWidth > sWidth && !isCandidateColor) {
+            tiered.push({...c, tier: 'tier-3', priority: 3, reason: `Slittable: ${cWidth}mm can be slit to ${sWidth}mm`});
+        }
+
+        // TIER 4: GSM UP-SELL (Same color/spec, but higher coating)
+        else if (cColor === sColor && thickDiff <= 0.01 && cGSM > sGSM) {
+            tiered.push({...c, tier: 'tier-4', priority: 4, reason: `Upsell: Better Coating (${cGSM} GSM)`});
+        }
+
+        // TIER 5: COLOR FAMILY (Same specs, similar color shade)
+        else if (sFamily && cFamily === sFamily && thickDiff <= 0.01 && cWidth === sWidth) {
+            tiered.push({...c, tier: 'tier-5', priority: 5, reason: `Color Family Match: ${cColor}`});
+        }
+
+        // TIER 6: TECHNICAL TOLERANCE (Same color, within slitting variance)
+        else if (cColor === sColor && !isCandidateColor) {
+            let canSlit = false;
+            if (cHardSoft === 'SOFT') {
+                if (sThick <= 0.60 && thickDiff <= 0.05) canSlit = true;
+                else if (sThick > 0.60 && thickDiff <= 0.60) canSlit = true;
+            } else {
+                // Hard GP slitting strictly under 0.60mm
+                if (sThick <= 0.60 && thickDiff <= 0.02) canSlit = true;
+            }
+            if (canSlit) {
+                tiered.push({...c, tier: 'tier-6', priority: 6, reason: 'Technical Match: Slittable Variance'});
+            }
+        }
+
+        // TIER 7: STRUCTURAL (Same specs, completely different color/item)
+        else if (thickDiff <= 0.01 && cWidth === sWidth) {
+            tiered.push({...c, tier: 'tier-7', priority: 7, reason: 'Structural Match: Different Color'});
+        }
+    });
+
+    // Sort by priority and limit to top 15 to prevent lag
+    return tiered.sort((a, b) => a.priority - b.priority).slice(0, 15);
+}
+
+// --- PART 3: RENDER ENGINE & VISUAL CONFLICT RESOLUTION ---
+
+function renderTable() {
+    const tbody = document.getElementById('master-tbody');
+    tbody.innerHTML = "";
+
+    const mainData = filtered.slice(0, displayLimit);
+    
+    if (mainData.length === 0 && recommendations.length === 0) {
+        tbody.innerHTML = "<tr><td colspan='18' style='text-align:center; padding:40px;'>No stock found matching criteria.</td></tr>";
+    } else {
+        // Pass index 'i' to createRow to show Serial Number
+        mainData.forEach((s, i) => tbody.appendChild(createRow(s, false, i + 1)));
+    }
+
+    if (recommendations.length > 0) {
+        const headRow = document.createElement('tr');
+        headRow.innerHTML = `<td colspan="18" class="rec-header">💡 STRATEGIC ALTERNATIVES (Technical Matches)</td>`;
+        tbody.appendChild(headRow);
+        recommendations.forEach((s, i) => tbody.appendChild(createRow(s, true, 'Rec')));
+    }
+
+    document.getElementById('loadMore').style.display = filtered.length > displayLimit ? 'block' : 'none';
+    updateKPIs();
+}
+
+function createRow(s, isRec, slNo) {
+    const tr = document.createElement('tr');
+    
+    // Core Logic Variables
+    const stat = String(s.status || "").toUpperCase();
+    const isConsumed = s.actWt <= 0.005 || stat.includes('CONSUME');
+    const isInUse = (s.actWt < (s.netWt - 0.01) || (s.allocatedTo && s.allocatedTo !== "—")) && !isConsumed;
+    const isLow = s.actWt < 0.5 && !isConsumed;
+
+    // A. BACKGROUND COLOR (STATUS)
+    if (isLow && isInUse) tr.className = "row-both";
+    else if (isLow) tr.className = "row-low";
+    else if (isInUse) tr.className = "row-inuse";
+
+    // B. LEFT BORDER (STRATEGIC TIER)
+    if (!isRec) tr.classList.add('tier-1');
+    else tr.classList.add(s.tier || 'tier-7');
+
+    const badgeClass = isConsumed ? 'badge-low' : (isInUse ? 'badge-use' : 'badge-full');
+    const displayStatus = isConsumed ? 'CONSUMED' : (isInUse ? 'IN USE' : 'FULL');
+    
+    // Sanitize text for Alert to prevent breaking JS
+    const safeDefect = String(s.defect_AG || "None").replace(/'/g, "\\'");
+    const safeComment = String(s.comments_AF || "None").replace(/'/g, "\\'");
+    const defectInfo = `MAJOR DEFECT: ${safeDefect}\\nSPECIAL COMMENT: ${safeComment}`;
+
+    tr.innerHTML = `
+        <td class="sl-col">${slNo}</td>
+        <td>${s.invDate || '—'}</td>
+        <td title="${isRec ? s.reason : ''}"><strong>${s.company} / ${s.item} / ${s.hardSoft}</strong></td>
+        <td style="font-weight:800; color:var(--blue)">${s.specs}</td>
+        <td>#${s.batch}</td>
+        <td>${s.openStk || 0}</td>
+        <td><span class="badge ${badgeClass}">${displayStatus}</span></td>
+        <td>${s.grossWt.toFixed(3)}</td>
+        <td>${s.netWt.toFixed(3)}</td>
+        <td>${s.quality}</td>
+        <td>${s.coated || 0}</td>
+        <td>${s.mtr || 0}m</td>
+        <td>${s.wtFt.toFixed(3)}</td>
+        <td style="color:var(--blue); font-weight:700">${s.allocatedTo || '—'}</td>
+        <td>${s.expectedPcs || '—'}</td>
+        <td>${s.actPcsMade || 0}</td>
+        <td><button class="icon-btn" onclick="alert('${defectInfo}')">👁️</button></td>
+        <td><a href="stock-details.html?id=${s.id}" class="btn-action">Details</a></td>
+    `;
+    return tr;
+}
+
+// INTERACTIVE KPI CLICK HANDLER
+function filterByKPI(type) {
+    document.getElementById('smartSearch').value = '';
+    // Clear dropdown selections
+    Object.keys(selections).forEach(k => selections[k] = []);
+    
+    // Reset All Checkboxes in UI
+    document.querySelectorAll('.dd-item input').forEach(cb => cb.checked = false);
+
+    if (type === 'total') {
+        filtered = [...rawStock];
+    } 
+    else if (type === 'weight') {
+        // Only show coils that have physical weight remaining
+        filtered = rawStock.filter(s => s.actWt > 0.005);
+    } 
+    else if (type === 'full') {
+        // FULL = Weight is original AND no party name assigned
+        filtered = rawStock.filter(s => 
+            s.actWt >= (s.netWt - 0.01) && 
+            (!s.allocatedTo || s.allocatedTo.trim() === "" || s.allocatedTo === "—")
+        );
+    } 
+    else if (type === 'inuse') {
+        // IN USE = Weight is less than original OR a party name is assigned (but not zero)
+        filtered = rawStock.filter(s => 
+            s.actWt > 0.005 && 
+            (s.actWt < (s.netWt - 0.01) || (s.allocatedTo && s.allocatedTo !== "—"))
+        );
+    } 
+    else if (type === 'consumed') {
+        // CONSUMED = Weight is zero or status says consume
+        filtered = rawStock.filter(s => 
+            s.actWt <= 0.005 || 
+            String(s.status).toUpperCase().includes('CONSUME')
+        );
+    } 
+    else if (type === 'low') {
+        filtered = rawStock.filter(s => s.actWt < 0.5 && s.actWt > 0.005);
+    }
+
+    displayLimit = 50;
+    recommendations = []; // Clear recs when clicking KPIs for clarity
+    renderTable();
+}
+
+function updateKPIs() {
+    let activeWeight = 0;
+    let f=0, u=0, c=0, l=0;
+
+    rawStock.forEach(s => {
+        const isConsumed = s.actWt <= 0.001 || s.status.includes('CONSUME');
+        if(!isConsumed) activeWeight += s.netWt;
+        
+        if(isConsumed) c++;
+        else if(s.allocatedTo || s.status.includes('USE')) u++;
+        else f++;
+
+        if(s.actWt < 0.5 && s.actWt > 0) l++;
+    });
+
+    document.getElementById('k-count').innerText = rawStock.length;
+    document.getElementById('k-wt').innerText = activeWeight.toFixed(2) + " MT";
+    document.getElementById('k-full').innerText = f;
+    document.getElementById('k-use').innerText = u;
+    document.getElementById('k-cons').innerText = c;
+    document.getElementById('k-low').innerText = l;
+}
+
+function wipeData() { 
+    if(confirm("DANGER: Wiping all stock will clear the entire local database. Proceed?")) {
+        localStorage.removeItem('pi_stock_data');
+        location.reload();
+    }
+}
+
+// Dropdown UI Interaction
+window.onclick = (e) => { 
+    if(!e.target.closest('.custom-dd')) {
+        document.querySelectorAll('.dd-list').forEach(l => l.classList.remove('open'));
+    } 
+};
+// --- MISSING UI & FILTER FUNCTIONS (REQUIRED TO PREVENT CRASH) ---
+
+function debouncedSearch() {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => { 
+        displayLimit = 50; 
+        applyFilters(); 
+    }, 300);
+}
+
+function initFilters() {
+    const row = document.getElementById('filterRow');
+    if (!row) return;
+    const keys = ['year', 'specs', 'item', 'company', 'status'];
+    row.innerHTML = '';
+    
+    keys.forEach(k => {
+        const unique = [...new Set(rawStock.map(s => String(s[k] || 'N/A')))]
+                       .filter(v => v !== 'N/A' && v.trim() !== '')
+                       .sort();
+
+        row.innerHTML += `
+            <div class="custom-dd" id="dd-${k}">
+                <div class="dd-header" onclick="toggleDD('${k}')">
+                    <span>${k.toUpperCase()}</span> 
+                    <span style="font-size:8px; margin-left:10px;">▼</span>
+                </div>
+                <div class="dd-list" onclick="event.stopPropagation()">
+                    <div class="dd-search-area">
+                        <input type="text" class="dd-search-input" placeholder="Search ${k}..." oninput="filterDDList('${k}', this.value)">
+                    </div>
+                    <div class="dd-actions">
+                        <span class="dd-action-btn" onclick="bulkSelect('${k}', true)">Select All</span>
+                        <span class="dd-action-btn" onclick="bulkSelect('${k}', false)">Clear</span>
+                    </div>
+                    <div class="dd-items-container" id="items-${k}">
+                        ${unique.map(v => `
+                            <label class="dd-item">
+                                <input type="checkbox" data-val="${v}" onchange="updateSelection('${k}', '${v}')"> 
+                                <span>${v}</span>
+                            </label>
+                        `).join('')}
+                    </div>
+                </div>
+            </div>`;
+    });
+}
+
+function toggleDD(k) {
+    const list = document.getElementById('dd-'+k).querySelector('.dd-list');
+    const wasOpen = list.classList.contains('open');
+    document.querySelectorAll('.dd-list').forEach(el => el.classList.remove('open'));
+    if(!wasOpen) {
+        list.classList.add('open');
+        setTimeout(() => list.querySelector('.dd-search-input').focus(), 10);
+    }
+}
+
+function filterDDList(k, query) {
+    const container = document.getElementById(`items-${k}`);
+    const items = container.getElementsByClassName('dd-item');
+    const q = query.toLowerCase();
+    Array.from(items).forEach(item => {
+        if(item.innerText.toLowerCase().includes(q)) item.classList.remove('hidden');
+        else item.classList.add('hidden');
+    });
+}
+
+function bulkSelect(k, state) {
+    const container = document.getElementById(`items-${k}`);
+    const checkboxes = container.querySelectorAll('.dd-item:not(.hidden) input');
+    selections[k] = [];
+    checkboxes.forEach(cb => {
+        cb.checked = state;
+        if(state) selections[k].push(cb.getAttribute('data-val'));
+    });
+    applyFilters();
+}
+
+function updateSelection(k, v) {
+    const i = selections[k].indexOf(v);
+    if(i > -1) selections[k].splice(i, 1); 
+    else selections[k].push(v);
+    applyFilters();
+}
+
+// INITIALIZATION
+initFilters();
+applyFilters();
+</script>
+</body>
+</html>

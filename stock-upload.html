@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>PI Stock - Master Upload & Entry</title>
+<script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+<style>
+    :root { --sidebar-w: 260px; --bg: #f0f2f8; --dark: #1a2236; --blue: #2563eb; --green: #16a34a; }
+    body { font-family: 'Segoe UI', sans-serif; background: var(--bg); display: flex; margin: 0; height: 100vh; overflow: hidden; }
+    
+    /* SIDEBAR */
+    .sidebar { width: var(--sidebar-w); background: var(--dark); height: 100vh; position: fixed; color: white; padding: 20px; z-index: 100; }
+    .sidebar h2 { color: #60a5fa; font-size: 20px; margin-bottom: 30px; }
+    .nav { display: flex; flex-direction: column; gap: 10px; }
+    .nav a { color: rgba(255,255,255,0.7); text-decoration: none; padding: 12px; border-radius: 8px; transition: 0.3s; font-size: 14px; }
+    .nav a:hover, .nav a.active { background: rgba(37,99,235,0.2); color: white; }
+
+    /* MAIN */
+    .main { margin-left: var(--sidebar-w); flex-grow: 1; padding: 30px; overflow-y: auto; }
+    .card { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); margin-bottom: 20px; }
+    
+    /* TABS */
+    .tab-header { display: flex; gap: 15px; margin-bottom: 20px; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+    .tab-btn { padding: 10px 20px; cursor: pointer; border: none; background: none; font-weight: 700; color: #64748b; border-radius: 8px; }
+    .tab-btn.active { background: var(--blue); color: white; }
+
+    /* FORM GRID */
+    .form-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; }
+    .form-group { display: flex; flex-direction: column; gap: 5px; }
+    label { font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase; }
+    input, select { padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 13px; outline: none; }
+    
+    .upload-zone { border: 3px dashed #cbd5e1; padding: 40px; text-align: center; border-radius: 20px; cursor: pointer; transition: 0.3s; }
+    .upload-zone:hover { border-color: var(--blue); background: #f8fafc; }
+    .btn { padding: 12px 25px; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; transition: 0.3s; }
+    .btn-blue { background: var(--blue); color: white; }
+    .btn-green { background: var(--green); color: white; }
+    #status { margin-top: 15px; font-weight: 700; color: var(--blue); font-size: 14px; }
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+    <h2>PI STOCK</h2>
+    <div class="nav">
+        <a href="all-stock.html">📦 All Stocks</a>
+        <a href="stock-upload.html" class="active">⬆️ Add Stock</a>
+        <a href="stock-details.html">📄 Stock Details</a>
+    </div>
+</div>
+
+<div class="main">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h1>Inventory Entry Portal</h1>
+        <div style="display: flex; gap: 10px;">
+            <button class="btn btn-green" onclick="downloadData()">📥 Export DB</button>
+        </div>
+    </div>
+
+    <div class="tab-header">
+        <button class="tab-btn active" onclick="switchTab('excel')">Excel Bulk Import</button>
+        <button class="tab-btn" onclick="switchTab('manual')">Manual Entry Form</button>
+    </div>
+
+    <!-- EXCEL SECTION -->
+    <div id="excel-section" class="card">
+        <div class="upload-zone" onclick="document.getElementById('file-in').click()">
+            <input type="file" id="file-in" hidden onchange="handleExcel(event)">
+            <div style="font-size: 50px;">📊</div>
+            <h3>Click to Upload Master Excel</h3>
+            <p>Processing Column A through AG (Indices 0 to 32)</p>
+        </div>
+        <div id="status">Ready for upload...</div>
+    </div>
+
+    <!-- MANUAL SECTION -->
+    <div id="manual-section" class="card" style="display:none">
+        <div class="form-grid">
+            <div class="form-group"><label>Inv Date</label><input type="date" id="m-date"></div>
+            <div class="form-group"><label>Batch No (H)</label><input type="text" id="m-batch"></div>
+            <div class="form-group"><label>Company (F)</label><input type="text" id="m-company"></div>
+            <div class="form-group">
+                <label>Item Type (E)</label>
+                <select id="m-item" onchange="calcWtFt()">
+                    <option value="COIL GP">COIL GP</option>
+                    <option value="COLOUR COIL">COLOUR COIL</option>
+                    <option value="HRGP COIL">HRGP COIL</option>
+                    <option value="SHEET CR">SHEET CR</option>
+                    <option value="SHEET GP">SHEET GP</option>
+                    <option value="SHEET GL">SHEET GL</option>
+                    <option value="SHEET COLOUR PROFILE">SHEET COLOUR PROFILE</option>
+                    <option value="SHEET COLOUR TILE">SHEET COLOUR TILE</option>
+                    <option value="SHEET DECK">SHEET DECK</option>
+                </select>
+            </div>
+            <div class="form-group"><label>Specs/Thickness (D)</label><input type="text" id="m-specs"></div>
+            <div class="form-group"><label>Hard/Soft (T)</label><input type="text" id="m-hs" value="SOFT"></div>
+            <div class="form-group"><label>Nett Wt (N)</label><input type="number" step="0.001" id="m-net" oninput="calcWtFt()"></div>
+            <div class="form-group">
+                <label>Length (Mtr/Ft) (U)</label>
+                <div style="display:flex; gap:5px;">
+                    <input type="number" id="m-len" style="flex:1" oninput="calcWtFt()">
+                    <select id="m-unit" onchange="calcWtFt()" style="width:70px;">
+                        <option value="M">Mtr</option>
+                        <option value="F">Ft</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-group"><label>Calculated Wt/-Ft (V)</label><input type="number" id="m-wtft" readonly style="background:#f8fafc"></div>
+            <div class="form-group"><label>Quality/Colour (P)</label><input type="text" id="m-qual"></div>
+            <div class="form-group"><label>Status Check/Alloc To (L)</label><input type="text" id="m-alloc"></div>
+            <div class="form-group"><label>Major Defect (AG)</label><input type="text" id="m-defect"></div>
+            <div class="form-group"><label>Comment (AF)</label><input type="text" id="m-comment"></div>
+        </div>
+        <div style="margin-top: 20px;">
+            <button class="btn btn-blue" onclick="saveManual()">Save to Inventory</button>
+        </div>
+    </div>
+</div>
+
+<script>
+function switchTab(t) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    event.target.classList.add('active');
+    document.getElementById('excel-section').style.display = t === 'excel' ? 'block' : 'none';
+    document.getElementById('manual-section').style.display = t === 'manual' ? 'block' : 'none';
+}
+
+// FORMULA LOGIC
+function calcWtFt() {
+    const netWt = parseFloat(document.getElementById('m-net').value) || 0;
+    let len = parseFloat(document.getElementById('m-len').value) || 0;
+    const unit = document.getElementById('m-unit').value;
+    const item = document.getElementById('m-item').value;
+
+    if (netWt <= 0 || len <= 0) return;
+
+    // Convert input to meters internally for calculation
+    let mtr = unit === 'F' ? len / 3.28084 : len;
+    
+    const groupA = ["COIL GP", "COLOUR COIL", "COIL GP HRGP", "HRGP COIL"];
+    let wtFt = 0;
+    
+    if (groupA.includes(item)) {
+        wtFt = (netWt * 1000) / mtr / 3.28;
+    } else {
+        wtFt = (netWt * 1000) / mtr;
+    }
+    document.getElementById('m-wtft').value = wtFt.toFixed(3);
+}
+
+function formatExcelDate(serial) {
+    if(!serial || isNaN(serial)) return serial || "N/A";
+    const date = new Date((serial - 25569) * 86400 * 1000);
+    return date.toLocaleDateString();
+}
+
+function handleExcel(e) {
+    const file = e.target.files[0];
+    const reader = new FileReader();
+    document.getElementById('status').innerText = "Processing 39 Column Data...";
+
+    reader.onload = (evt) => {
+        try {
+            const wb = XLSX.read(evt.target.result, {type:'binary'});
+            const data = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1});
+            
+            let importData = data.slice(1).map((r, i) => {
+                if(!r[7]) return null;
+
+                // Indexing mapping: A=0, D=3, E=4, F=5, H=7, J=9, L=11, M=12, N=13, P=15, Q=16, R=17, S=18, T=19, U=20, V=21, X=23, AF=31, AG=32
+                return {
+                    id: Date.now() + i,
+                    invDate: formatExcelDate(r[0]),
+                    specs: String(r[3] || ""),
+                    item: String(r[4] || ""),
+                    company: String(r[5] || ""),
+                    batch: String(r[7]),
+                    openStk: parseFloat(r[9]) || 0,
+                    allocatedTo: String(r[10] || ""), // L is allocated to
+                    status: String(r[11] || "N/A"), 
+                    grossWt: parseFloat(r[12]) || 0,
+                    netWt: parseFloat(r[13]) || 0,
+                    quality: String(r[15] || ""),
+                    comment: String(r[16] || ""), // Column Q
+                    coated: String(r[17] || ""),
+                    price: parseFloat(r[18]) || 0,
+                    hardSoft: String(r[19] || "SOFT"),
+                    mtr: parseFloat(r[20]) || 0,
+                    wtFt: parseFloat(r[21]) || 0,
+                    actWt: parseFloat(r[23]) || parseFloat(r[13]) || 0,
+                    
+                    // IMPORTANT: DEFECT AND COMMENTS FROM AF/AG
+                    comments_AF: String(r[32] || "").trim() || "N/A",
+                    defect_AG: String(r[33] || "").trim() || "N/A",
+
+                    allocSpecs: "",
+                    actPcsMade: 0,
+                    fullRecord: r 
+                };
+            }).filter(x => x !== null);
+
+            let existing = JSON.parse(localStorage.getItem('pi_stock_data')) || [];
+            localStorage.setItem('pi_stock_data', JSON.stringify([...importData, ...existing]));
+            document.getElementById('status').innerText = `Success: ${importData.length} coils added.`;
+            setTimeout(() => window.location.href = 'all-stock.html', 1000);
+        } catch (err) { alert("Error reading Excel. Please check file format."); }
+    };
+    reader.readAsBinaryString(file);
+}
+
+function saveManual() {
+    let existing = JSON.parse(localStorage.getItem('pi_stock_data')) || [];
+    const len = parseFloat(document.getElementById('m-len').value) || 0;
+    const unit = document.getElementById('m-unit').value;
+    const mtr = unit === 'F' ? len / 3.28084 : len;
+
+    const entry = {
+        id: Date.now(),
+        invDate: document.getElementById('m-date').value,
+        batch: document.getElementById('m-batch').value,
+        company: document.getElementById('m-company').value,
+        item: document.getElementById('m-item').value,
+        specs: document.getElementById('m-specs').value,
+        hardSoft: document.getElementById('m-hs').value,
+        netWt: parseFloat(document.getElementById('m-net').value) || 0,
+        mtr: mtr.toFixed(2),
+        wtFt: parseFloat(document.getElementById('m-wtft').value) || 0,
+        quality: document.getElementById('m-qual').value,
+        allocatedTo: document.getElementById('m-alloc').value,
+        defect_AG: document.getElementById('m-defect').value || "N/A",
+        comments_AF: document.getElementById('m-comment').value || "N/A",
+        actWt: parseFloat(document.getElementById('m-net').value) || 0,
+        status: document.getElementById('m-alloc').value ? "IN USE" : "FULL",
+        fullRecord: []
+    };
+
+    existing.unshift(entry);
+    localStorage.setItem('pi_stock_data', JSON.stringify(existing));
+    window.location.href = 'all-stock.html';
+}
+
+function downloadData() {
+    let data = JSON.parse(localStorage.getItem('pi_stock_data')) || [];
+    if(!data.length) return alert("No data found.");
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Inventory_Backup");
+    XLSX.writeFile(wb, "PI_Inventory_Backup.xlsx");
+}
+</script>
+</body>
+</html>
