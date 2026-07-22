@@ -1,0 +1,34 @@
+# Windows
+Thumbs.db
+Desktop.ini
+
+# macOS
+.DS_Store
+
+# VS Code
+.vscode/
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# Backup files
+*.bak
+
+# Environment files
+.env
+
+# Company inventory data
+*.xlsx
+*.xls
+*.csv
+
+# Future Node.js dependencies
+node_modules/
+
+# Build folders
+dist/
+build/
